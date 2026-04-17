@@ -1,9 +1,21 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ReportData, ReportSection } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
+let aiInstance: GoogleGenAI | null = null;
+
+function getAI() {
+  if (!aiInstance) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey || apiKey === "undefined") {
+      throw new Error("La clave API de Gemini no está configurada. Por favor, añádela a las variables de entorno.");
+    }
+    aiInstance = new GoogleGenAI({ apiKey });
+  }
+  return aiInstance;
+}
 
 export async function analyzeWordContent(text: string): Promise<ReportData> {
+  const ai = getAI();
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Analiza el siguiente texto de un documento Word y extráelo en una estructura de informe profesional. 
@@ -55,6 +67,7 @@ export async function analyzeWordContent(text: string): Promise<ReportData> {
 
 export async function generateSectionImage(prompt: string): Promise<string | undefined> {
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
