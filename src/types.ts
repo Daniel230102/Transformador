@@ -2,8 +2,17 @@ export interface ReportSection {
   title: string;
   content: string;
   keyPoints: string[];
-  imagePrompt: string;
-  imageUrl?: string;
+  reportImagePrompt: string;
+  presentationImagePrompt: string;
+  reportImageUrl?: string;
+  presentationImageUrl?: string;
+}
+
+export interface ThemeConfig {
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  aesthetic: 'corporate' | 'creative' | 'technical' | 'minimalist' | 'academic';
 }
 
 export interface ReportData {
@@ -14,6 +23,7 @@ export interface ReportData {
   summary: string;
   sections: ReportSection[];
   keywords: string[];
+  theme: ThemeConfig;
 }
 
 export type ProcessStatus = 'idle' | 'uploading' | 'parsing' | 'analyzing' | 'generating_images' | 'ready' | 'error';

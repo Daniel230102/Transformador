@@ -44,12 +44,15 @@ export default function App() {
       setStatus('analyzing');
       const data = await analyzeWordContent(text);
       
-      // 3. Image Generation
+      // 3. Image Generation (Distinct for Report and PPT)
       setStatus('generating_images');
       const sectionsWithImages = await Promise.all(
         data.sections.map(async (section) => {
-          const imageUrl = await generateSectionImage(section.imagePrompt);
-          return { ...section, imageUrl };
+          const [reportUrl, presentationUrl] = await Promise.all([
+            generateSectionImage(section.reportImagePrompt),
+            generateSectionImage(section.presentationImagePrompt)
+          ]);
+          return { ...section, reportImageUrl: reportUrl, presentationImageUrl: presentationUrl };
         })
       );
       

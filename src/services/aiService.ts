@@ -19,11 +19,12 @@ export async function analyzeWordContent(text: string): Promise<ReportData> {
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Analiza el siguiente texto de un documento Word y extráelo en una estructura de informe profesional. 
-    Debes sintetizar la información, extraer ideas clave y generar un resumen ejecutivo.
-    También debes proponer un prompt de imagen descriptivo para cada sección (máximo 15 palabras, en inglés para mejor resultado).
+    1. Debes sintetizar la información, extraer ideas clave y generar un resumen ejecutivo.
+    2. Debes decidir una estética (Theme) basada en el tema del proyecto (ej: si es médico usa colores limpios y profesionales, si es de marketing usa colores vibrantes y modernos).
+    3. Proporciona prompts de imagen distintos para el Informe (Report) y la Presentación (PPT). El del Informe debe ser más sobrio y descriptivo; el de la Presentación debe ser más visual, impactante y cinematográfico.
     
     TEXTO:
-    ${text.substring(0, 30000)} // Límite para evitar tokens excesivos
+    ${text.substring(0, 30000)}
     `,
     config: {
       responseMimeType: "application/json",
@@ -39,6 +40,16 @@ export async function analyzeWordContent(text: string): Promise<ReportData> {
             type: Type.ARRAY,
             items: { type: Type.STRING }
           },
+          theme: {
+            type: Type.OBJECT,
+            properties: {
+              primaryColor: { type: Type.STRING, description: "Color principal en Hex (ej: #1e3a8a)" },
+              secondaryColor: { type: Type.STRING, description: "Color secundario en Hex" },
+              accentColor: { type: Type.STRING, description: "Color de acento en Hex" },
+              aesthetic: { type: Type.STRING, enum: ["corporate", "creative", "technical", "minimalist", "academic"] }
+            },
+            required: ["primaryColor", "secondaryColor", "accentColor", "aesthetic"]
+          },
           sections: {
             type: Type.ARRAY,
             items: {
@@ -50,13 +61,14 @@ export async function analyzeWordContent(text: string): Promise<ReportData> {
                   type: Type.ARRAY,
                   items: { type: Type.STRING }
                 },
-                imagePrompt: { type: Type.STRING, description: "Un prompt visual para ilustrar esta sección, sin texto." }
+                reportImagePrompt: { type: Type.STRING, description: "Prompt para imagen de informe (sobrio)." },
+                presentationImagePrompt: { type: Type.STRING, description: "Prompt para imagen de diapositiva (impactante)." }
               },
-              required: ["title", "content", "keyPoints", "imagePrompt"]
+              required: ["title", "content", "keyPoints", "reportImagePrompt", "presentationImagePrompt"]
             }
           }
         },
-        required: ["title", "subtitle", "author", "date", "summary", "sections", "keywords"]
+        required: ["title", "subtitle", "author", "date", "summary", "sections", "keywords", "theme"]
       }
     }
   });
