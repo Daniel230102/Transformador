@@ -18,13 +18,18 @@ export async function analyzeWordContent(text: string): Promise<ReportData> {
   const ai = getAI();
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
-    contents: `Analiza el siguiente texto de un documento Word y extráelo en una estructura de informe profesional. 
-    1. Debes sintetizar la información, extraer ideas clave y generar un resumen ejecutivo.
-    2. Debes decidir una estética (Theme) basada en el tema del proyecto (ej: si es médico usa colores limpios y profesionales, si es de marketing usa colores vibrantes y modernos).
-    3. Proporciona prompts de imagen distintos para el Informe (Report) y la Presentación (PPT). El del Informe debe ser más sobrio y descriptivo; el de la Presentación debe ser más visual, impactante y cinematográfico.
+    contents: `Analiza exhaustivamente el siguiente texto de un documento Word y transformalo en un informe profesional EXTENSO y una presentación de alto impacto. 
     
-    TEXTO:
-    ${text.substring(0, 30000)}
+    INSTRUCCIONES CRÍTICAS DE CONTENIDO:
+    1. EXPANSIÓN: No resumas. Desarrolla cada punto clave en párrafos detallados de al menos 150-200 palabras por sección.
+    2. ESTRUCTURA: Genera un mínimo de 6 a 10 secciones si el texto original lo permite. Debe cubrir TODO el contenido del archivo subido.
+    3. TEMATIZACIÓN: Elige una estética (Theme) personalizada basada en el tema (ej: 'cyberpunk' para tecnología, 'minimalist' para arquitectura, 'vibrant' para marketing).
+    4. IMÁGENES DUALES:
+       - 'reportImagePrompt': Prompt para una imagen técnica, tipo ilustración corporativa o diagrama visual limpio.
+       - 'presentationImagePrompt': Prompt para una imagen cinematográfica, espectacular y con gran fuerza visual.
+    
+    TEXTO DEL DOCUMENTO:
+    ${text.substring(0, 35000)}
     `,
     config: {
       responseMimeType: "application/json",
@@ -43,9 +48,9 @@ export async function analyzeWordContent(text: string): Promise<ReportData> {
           theme: {
             type: Type.OBJECT,
             properties: {
-              primaryColor: { type: Type.STRING, description: "Color principal en Hex (ej: #1e3a8a)" },
-              secondaryColor: { type: Type.STRING, description: "Color secundario en Hex" },
-              accentColor: { type: Type.STRING, description: "Color de acento en Hex" },
+              primaryColor: { type: Type.STRING },
+              secondaryColor: { type: Type.STRING },
+              accentColor: { type: Type.STRING },
               aesthetic: { type: Type.STRING, enum: ["corporate", "creative", "technical", "minimalist", "academic"] }
             },
             required: ["primaryColor", "secondaryColor", "accentColor", "aesthetic"]
@@ -61,8 +66,8 @@ export async function analyzeWordContent(text: string): Promise<ReportData> {
                   type: Type.ARRAY,
                   items: { type: Type.STRING }
                 },
-                reportImagePrompt: { type: Type.STRING, description: "Prompt para imagen de informe (sobrio)." },
-                presentationImagePrompt: { type: Type.STRING, description: "Prompt para imagen de diapositiva (impactante)." }
+                reportImagePrompt: { type: Type.STRING },
+                presentationImagePrompt: { type: Type.STRING }
               },
               required: ["title", "content", "keyPoints", "reportImagePrompt", "presentationImagePrompt"]
             }
@@ -85,21 +90,22 @@ export async function generateSectionImage(prompt: string): Promise<string | und
       contents: {
         parts: [
           {
-            text: `A professional, clean, corporate-style image illustrating: ${prompt}. Minimalist, high quality, no text, no people faces if possible, abstract or office environment.`,
+            text: `High-quality professional visual: ${prompt}. Cinematic lighting, 8k resolution, clean composition. No text.`,
           },
         ],
       },
       config: {
         imageConfig: {
           aspectRatio: "16:9",
-          imageSize: "1K"
+          imageSize: "768x432" // Adjusted for better performance and compatibility on Vercel
         }
       }
     });
 
     for (const part of response.candidates?.[0]?.content?.parts || []) {
       if (part.inlineData) {
-        return `data:image/png;base64,${part.inlineData.data}`;
+        // Force PNG/JPG header explicitly for better browser support
+        return `data:image/jpeg;base64,${part.inlineData.data}`;
       }
     }
   } catch (error) {

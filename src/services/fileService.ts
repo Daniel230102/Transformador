@@ -128,67 +128,86 @@ export function generatePDF(data: ReportData) {
 export function generatePPT(data: ReportData) {
   const pptx = new PptxGenJS();
   const theme = data.theme;
-  
-  // Theme variants based on AI choice
-  const bgColor = theme.aesthetic === 'minimalist' ? "ffffff" : "0f172a";
-  const titleColor = theme.aesthetic === 'minimalist' ? theme.primaryColor.replace('#', '') : "ffffff";
-  const accentColor = theme.accentColor.replace('#', '');
+  const primary = theme.primaryColor.replace('#', '');
+  const accent = theme.accentColor.replace('#', '');
+  const secondary = theme.secondaryColor.replace('#', '');
+  const textColor = theme.aesthetic === 'minimalist' ? '333333' : 'ffffff';
+  const bgColor = theme.aesthetic === 'minimalist' ? 'ffffff' : '0f172a';
 
-  // --- PRESENTATION COVER ---
+  // --- 1. PORTADA ---
   let slide = pptx.addSlide();
   slide.background = { color: bgColor };
   
-  // Big Design Elements
-  slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0.5, w: '25%', h: 0.1, fill: { color: accentColor } });
-  
+  slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: '100%', h: 0.15, fill: { color: accent } });
   slide.addText(data.title.toUpperCase(), { 
-    x: 0.5, y: 1.5, w: 9, h: 2, 
-    fontSize: 48, color: titleColor, align: "left", bold: true, fontFace: "Impact"
+    x: 1, y: 1.5, w: 8, h: 2, fontSize: 48, color: accent, bold: true, align: 'center', fontFace: 'Impact' 
   });
-  
   slide.addText(data.subtitle, { 
-    x: 0.5, y: 3.5, w: 9, h: 0.5, 
-    fontSize: 24, color: accentColor, align: "left"
+    x: 1, y: 3.5, w: 8, h: 0.5, fontSize: 24, color: textColor, align: 'center' 
+  });
+  slide.addText(`Por: ${data.author} | ${data.date}`, { 
+    x: 1, y: 4.8, w: 8, h: 0.5, fontSize: 14, color: '888888', align: 'center' 
   });
 
-  // --- CONTENT SLIDES (Presentation Impact) ---
+  // --- 2. ÍNDICE (TABLA DE CONTENIDOS) ---
+  slide = pptx.addSlide();
+  slide.background = { color: bgColor };
+  slide.addText("ÍNDICE DE CONTENIDOS", { 
+    x: 0.5, y: 0.5, w: 9, h: 0.8, fontSize: 32, color: accent, bold: true, border: { pos: 'b', color: accent, size: 2 } 
+  });
+  
+  const indexPoints = data.sections.map((s, i) => `${String(i + 1).padStart(2, '0')}. ${s.title.toUpperCase()}`);
+  slide.addText(indexPoints.join('\n'), {
+    x: 0.5, y: 1.5, w: 9, h: 4, fontSize: 16, color: textColor, lineSpacing: 28, bold: true
+  });
+
+  // --- 3. CONTENIDO DINÁMICO ---
   data.sections.forEach((section, index) => {
     slide = pptx.addSlide();
     slide.background = { color: bgColor };
-
-    // Dynamic Slide Layout
-    const isOdd = index % 2 === 0;
     
-    // Header
-    slide.addText(section.title, { 
-      x: 0.5, y: 0.5, w: 9, h: 0.8, 
-      fontSize: 32, color: accentColor, bold: true 
-    });
+    // Alternar entre 4 estilos de diseño para que no sean iguales
+    const designStyle = index % 4;
 
-    // Content: Bullet Points (Slide logic)
-    slide.addText(section.keyPoints.map(p => { return { text: p, options: { bullet: true, indent: 20 } }; }), {
-      x: isOdd ? 5.2 : 0.5, y: 1.5, w: 4.3, h: 4,
-      fontSize: 18, color: titleColor,
-      valign: 'middle'
-    });
+    switch (designStyle) {
+      case 0: // Imagen Completa Fondo Izquierda, Texto Derecha
+        slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 5, h: '100%', fill: { color: '1e293b' } });
+        if (section.presentationImageUrl) {
+          slide.addImage({ data: section.presentationImageUrl, x: 0.2, y: 0.2, w: 4.6, h: 5.2, sizing: { type: 'cover', w: 4.6, h: 5.2 } });
+        }
+        slide.addText(section.title, { x: 5.5, y: 0.5, w: 4, h: 1, fontSize: 24, color: accent, bold: true });
+        slide.addText(section.keyPoints.map(p => `• ${p}`).join('\n'), { x: 5.5, y: 1.5, w: 4, h: 3.5, fontSize: 14, color: textColor, lineSpacing: 22 });
+        break;
 
-    // Presentation Image (Cinematic/Visual)
-    if (section.presentationImageUrl) {
-      slide.addImage({ 
-        data: section.presentationImageUrl, 
-        x: isOdd ? 0.5 : 5.2, y: 1.5, w: 4.3, h: 3.5,
-        sizing: { type: 'cover', w: 4.3, h: 3.5 }
-      });
-      // Aesthetic border
-      slide.addShape(pptx.ShapeType.rect, { 
-        x: (isOdd ? 0.5 : 5.2) + 0.1, y: 1.6, w: 4.3, h: 3.5, 
-        line: { color: accentColor, width: 2 } 
-      });
+      case 1: // Enfoque Texto Arriba, 3 Columnas abajo
+        slide.addText(section.title, { x: 0.5, y: 0.5, w: 9, h: 0.8, fontSize: 28, color: accent, bold: true, align: 'center' });
+        if (section.presentationImageUrl) {
+          slide.addImage({ data: section.presentationImageUrl, x: 1, y: 1.5, w: 8, h: 2.2, sizing: { type: 'contain', w: 8, h: 2.2 } });
+        }
+        slide.addText(section.keyPoints.join(' | '), { x: 0.5, y: 4, w: 9, h: 1, fontSize: 14, color: textColor, align: 'center', italic: true });
+        break;
+
+      case 2: // Split Horizontal, Imagen abajo enorme
+        slide.addText(section.title, { x: 0.5, y: 0.3, w: 6, h: 0.6, fontSize: 24, color: accent, bold: true });
+        slide.addText(section.keyPoints.slice(0, 3).join(' • '), { x: 0.5, y: 0.8, w: 9, h: 0.5, fontSize: 12, color: 'cccccc' });
+        if (section.presentationImageUrl) {
+          slide.addImage({ data: section.presentationImageUrl, x: 0.5, y: 1.5, w: 9, h: 3.8, sizing: { type: 'cover', w: 9, h: 3.8 } });
+        }
+        break;
+
+      case 3: // Estilo "Gráfico": Texto izquierda, imagen con marco derecha
+        slide.addShape(pptx.ShapeType.rect, { x: 5.2, y: 1.5, w: 4.5, h: 3.5, line: { color: accent, width: 3 } });
+        if (section.presentationImageUrl) {
+          slide.addImage({ data: section.presentationImageUrl, x: 5.3, y: 1.6, w: 4.3, h: 3.3 });
+        }
+        slide.addText(section.title, { x: 0.5, y: 0.5, w: 4.5, h: 1, fontSize: 26, color: accent, bold: true });
+        slide.addText(section.keyPoints.map(p => `► ${p}`).join('\n'), { x: 0.5, y: 1.5, w: 4.5, h: 3.5, fontSize: 13, color: textColor, lineSpacing: 20 });
+        break;
     }
 
-    // Interactive Footer
-    slide.addText(`PROYECTO: ${data.title.toUpperCase()} | SESIÓN ${index + 1}`, {
-      x: 0.5, y: 5.2, w: 9, h: 0.3, fontSize: 10, color: "888888", align: 'center'
+    // Pie de página elegante en todas
+    slide.addText(`${data.title.toUpperCase()} | PÁGINA ${index + 3}`, { 
+      x: 0, y: 5.3, w: '100%', h: 0.3, fontSize: 9, color: '666666', align: 'center' 
     });
   });
 
