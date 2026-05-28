@@ -153,8 +153,10 @@ export function generatePPT(data: ReportData) {
   slide = pptx.addSlide();
   slide.background = { color: bgColor };
   slide.addText("ÍNDICE DE CONTENIDOS", { 
-    x: 0.5, y: 0.5, w: 9, h: 0.8, fontSize: 32, color: accent, bold: true, border: { pos: 'b', color: accent, size: 2 } 
+    x: 0.5, y: 0.5, w: 9, h: 0.8, fontSize: 32, color: accent, bold: true
   });
+  // Accent line below title
+  slide.addShape(pptx.ShapeType.rect, { x: 0.5, y: 1.2, w: 9, h: 0.03, fill: { color: accent } });
   
   const indexPoints = data.sections.map((s, i) => `${String(i + 1).padStart(2, '0')}. ${s.title.toUpperCase()}`);
   slide.addText(indexPoints.join('\n'), {
@@ -174,6 +176,9 @@ export function generatePPT(data: ReportData) {
         slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 5, h: '100%', fill: { color: '1e293b' } });
         if (section.presentationImageUrl) {
           slide.addImage({ data: section.presentationImageUrl, x: 0.2, y: 0.2, w: 4.6, h: 5.2, sizing: { type: 'cover', w: 4.6, h: 5.2 } });
+        } else {
+          slide.addShape(pptx.ShapeType.rect, { x: 0.5, y: 1.5, w: 4, h: 3, fill: { color: accent } });
+          slide.addText("EJE ESTRATÉGICO", { x: 0.5, y: 2.7, w: 4, h: 1, fontSize: 22, color: 'ffffff', bold: true, align: 'center' });
         }
         slide.addText(section.title, { x: 5.5, y: 0.5, w: 4, h: 1, fontSize: 24, color: accent, bold: true });
         slide.addText(section.keyPoints.map(p => `• ${p}`).join('\n'), { x: 5.5, y: 1.5, w: 4, h: 3.5, fontSize: 14, color: textColor, lineSpacing: 22 });
@@ -183,6 +188,9 @@ export function generatePPT(data: ReportData) {
         slide.addText(section.title, { x: 0.5, y: 0.5, w: 9, h: 0.8, fontSize: 28, color: accent, bold: true, align: 'center' });
         if (section.presentationImageUrl) {
           slide.addImage({ data: section.presentationImageUrl, x: 1, y: 1.5, w: 8, h: 2.2, sizing: { type: 'contain', w: 8, h: 2.2 } });
+        } else {
+          slide.addShape(pptx.ShapeType.rect, { x: 1, y: 1.5, w: 8, h: 2.2, fill: { color: '1e293b' } });
+          slide.addText("SÍNTESIS ANALÍTICA", { x: 1, y: 2.3, w: 8, h: 1, fontSize: 20, color: accent, bold: true, align: 'center' });
         }
         slide.addText(section.keyPoints.join(' | '), { x: 0.5, y: 4, w: 9, h: 1, fontSize: 14, color: textColor, align: 'center', italic: true });
         break;
@@ -192,6 +200,9 @@ export function generatePPT(data: ReportData) {
         slide.addText(section.keyPoints.slice(0, 3).join(' • '), { x: 0.5, y: 0.8, w: 9, h: 0.5, fontSize: 12, color: 'cccccc' });
         if (section.presentationImageUrl) {
           slide.addImage({ data: section.presentationImageUrl, x: 0.5, y: 1.5, w: 9, h: 3.8, sizing: { type: 'cover', w: 9, h: 3.8 } });
+        } else {
+          slide.addShape(pptx.ShapeType.rect, { x: 0.5, y: 1.5, w: 9, h: 3.8, fill: { color: '1e293b' } });
+          slide.addText("INNOVACIÓN ESTRATÉGICA", { x: 0.5, y: 3.0, w: 9, h: 1, fontSize: 24, color: accent, bold: true, align: 'center' });
         }
         break;
 
@@ -199,6 +210,9 @@ export function generatePPT(data: ReportData) {
         slide.addShape(pptx.ShapeType.rect, { x: 5.2, y: 1.5, w: 4.5, h: 3.5, line: { color: accent, width: 3 } });
         if (section.presentationImageUrl) {
           slide.addImage({ data: section.presentationImageUrl, x: 5.3, y: 1.6, w: 4.3, h: 3.3 });
+        } else {
+          slide.addShape(pptx.ShapeType.rect, { x: 5.3, y: 1.6, w: 4.3, h: 3.3, fill: { color: '1e293b' } });
+          slide.addText("VISUALIZACIÓN", { x: 5.3, y: 2.9, w: 4.3, h: 1, fontSize: 18, color: 'ffffff', bold: true, align: 'center' });
         }
         slide.addText(section.title, { x: 0.5, y: 0.5, w: 4.5, h: 1, fontSize: 26, color: accent, bold: true });
         slide.addText(section.keyPoints.map(p => `► ${p}`).join('\n'), { x: 0.5, y: 1.5, w: 4.5, h: 3.5, fontSize: 13, color: textColor, lineSpacing: 20 });

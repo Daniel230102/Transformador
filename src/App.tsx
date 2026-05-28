@@ -27,6 +27,7 @@ export default function App() {
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [fileName, setFileName] = useState<string>('');
   const [processTime, setProcessTime] = useState<number>(0);
+  const [generateMode, setGenerateMode] = useState<'both' | 'pdf' | 'pptx'>('both');
 
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -44,15 +45,36 @@ export default function App() {
       setStatus('analyzing');
       const data = await analyzeWordContent(text);
       
-      // 3. Image Generation (Distinct for Report and PPT)
+      // 3. Image Generation (Distinct for Report and PPT, conditional on mode)
       setStatus('generating_images');
       const sectionsWithImages = await Promise.all(
         data.sections.map(async (section) => {
-          const [reportUrl, presentationUrl] = await Promise.all([
-            generateSectionImage(section.reportImagePrompt),
-            generateSectionImage(section.presentationImagePrompt)
-          ]);
-          return { ...section, reportImageUrl: reportUrl, presentationImageUrl: presentationUrl };
+          let reportUrl = '';
+          let presentationUrl = '';
+
+          const promises = [];
+          if (generateMode === 'both' || generateMode === 'pdf') {
+            promises.push(
+              generateSectionImage(section.reportImagePrompt).then((url) => {
+                reportUrl = url || '';
+              })
+            );
+          }
+          if (generateMode === 'both' || generateMode === 'pptx') {
+            promises.push(
+              generateSectionImage(section.presentationImagePrompt).then((url) => {
+                presentationUrl = url || '';
+              })
+            );
+          }
+
+          await Promise.all(promises);
+
+          return { 
+            ...section, 
+            reportImageUrl: reportUrl, 
+            presentationImageUrl: presentationUrl 
+          };
         })
       );
       
@@ -64,7 +86,7 @@ export default function App() {
       console.error("Process error:", error);
       setStatus('error');
     }
-  }, []);
+  }, [generateMode]);
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 p-6 md:p-10 font-sans selection:bg-orange-500/30">
@@ -89,34 +111,83 @@ export default function App() {
           
           {/* Upload Section */}
           <BentoCard className="md:col-span-4 md:row-span-5 relative group" delay={0.1}>
-            <div className="flex flex-col items-center justify-center h-full text-center py-8">
-              <input
-                type="file"
-                accept=".docx"
-                onChange={handleFileUpload}
-                className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                id="file-upload"
-              />
-              <div className={cn(
-                "w-16 h-16 rounded-2xl flex items-center justify-center mb-6 transition-all duration-300",
-                status === 'ready' ? "bg-emerald-500/20 text-emerald-500" : "bg-slate-700 text-slate-400 group-hover:bg-orange-500/10 group-hover:text-orange-500"
-              )}>
-                {status === 'idle' && <Upload className="w-8 h-8" />}
-                {['parsing', 'analyzing', 'generating_images'].includes(status) && <Loader2 className="w-8 h-8 animate-spin" />}
-                {status === 'ready' && <CheckCircle2 className="w-8 h-8" />}
-                {status === 'error' && <FileText className="w-8 h-8 text-rose-500" />}
+            <div className="flex flex-col h-full justify-between py-2">
+              {/* Upload Zone */}
+              <div className="relative rounded-2xl border-2 border-dashed border-slate-700 hover:border-orange-500/50 transition-all duration-300 p-6 flex flex-col items-center justify-center text-center cursor-pointer min-h-[180px] group/upload bg-slate-800/20 hover:bg-slate-800/40">
+                <input
+                  type="file"
+                  accept=".docx"
+                  onChange={handleFileUpload}
+                  className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                  id="file-upload"
+                  disabled={status !== 'idle' && status !== 'error' && status !== 'ready'}
+                />
+                <div className={cn(
+                  "w-12 h-12 rounded-xl flex items-center justify-center mb-4 transition-all duration-300",
+                  status === 'ready' ? "bg-emerald-500/20 text-emerald-500" : "bg-slate-700 text-slate-400 group-hover/upload:bg-orange-500/15 group-hover/upload:text-orange-400"
+                )}>
+                  {status === 'idle' && <Upload className="w-5 h-5 animate-pulse" />}
+                  {['parsing', 'analyzing', 'generating_images'].includes(status) && <Loader2 className="w-5 h-5 animate-spin" />}
+                  {status === 'ready' && <CheckCircle2 className="w-5 h-5 shadow-emerald-500/10" />}
+                  {status === 'error' && <FileText className="w-5 h-5 text-rose-500" />}
+                </div>
+                <h2 className="text-sm font-bold text-slate-200 mb-1">
+                  {status === 'ready' ? 'Word Procesado Correctamente' : 'Subir Documento .docx'}
+                </h2>
+                <p className="text-[11px] text-slate-400 max-w-[210px] leading-relaxed">
+                  {fileName || 'Arrastra tu archivo aquí o haz clic para explorar.'}
+                </p>
+                {status === 'ready' && (
+                  <span className="mt-3 px-2.5 py-0.5 bg-emerald-500/10 text-emerald-400 text-[9px] font-bold uppercase tracking-wider rounded-full border border-emerald-500/30">
+                    Sincronizado
+                  </span>
+                )}
               </div>
-              <h2 className="text-lg font-semibold mb-2">
-                {status === 'ready' ? 'Documento Listo' : 'Subir Documento'}
-              </h2>
-              <p className="text-sm text-slate-400 max-w-[200px] mb-4">
-                {fileName || 'Arrastra tu archivo Word (.docx) aquí para comenzar el análisis.'}
-              </p>
-              {status === 'ready' && (
-                <span className="px-3 py-1 bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase tracking-wider rounded-full border border-emerald-500/20">
-                  Completado
-                </span>
-              )}
+
+              {/* Selection Mode Control */}
+              <div className="mt-4">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 block">
+                  Formatos de Salida
+                </label>
+                <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                  <button
+                    onClick={() => setGenerateMode('both')}
+                    disabled={status === 'parsing' || status === 'analyzing' || status === 'generating_images'}
+                    className={cn(
+                      "py-2 px-1 text-[11px] font-bold rounded-lg transition-all duration-300 border",
+                      generateMode === 'both' 
+                        ? "bg-orange-500 text-white border-orange-400 shadow-md shadow-orange-500/15" 
+                        : "text-slate-400 border-transparent hover:text-slate-200 hover:bg-slate-900"
+                    )}
+                  >
+                    Ambos
+                  </button>
+                  <button
+                    onClick={() => setGenerateMode('pdf')}
+                    disabled={status === 'parsing' || status === 'analyzing' || status === 'generating_images'}
+                    className={cn(
+                      "py-2 px-1 text-[11px] font-bold rounded-lg transition-all duration-300 border",
+                      generateMode === 'pdf' 
+                        ? "bg-slate-800 text-slate-100 border-slate-700 shadow-md" 
+                        : "text-slate-400 border-transparent hover:text-slate-200 hover:bg-slate-900"
+                    )}
+                  >
+                    Solo PDF
+                  </button>
+                  <button
+                    onClick={() => setGenerateMode('pptx')}
+                    disabled={status === 'parsing' || status === 'analyzing' || status === 'generating_images'}
+                    className={cn(
+                      "py-2 px-1 text-[11px] font-bold rounded-lg transition-all duration-300 border",
+                      generateMode === 'pptx' 
+                        ? "bg-slate-800 text-slate-100 border-slate-700 shadow-md" 
+                        : "text-slate-400 border-transparent hover:text-slate-200 hover:bg-slate-900"
+                    )}
+                  >
+                    Solo PPT
+                  </button>
+                </div>
+              </div>
             </div>
           </BentoCard>
 
@@ -206,34 +277,75 @@ export default function App() {
           </BentoCard>
 
           {/* PDF Preview Cell */}
-          <BentoCard className="md:col-span-4 md:row-span-7 bg-slate-50 text-slate-900 border-none shadow-xl" delay={0.4}>
+          <BentoCard 
+            className={cn(
+              "md:col-span-4 md:row-span-7 transition-all duration-300 relative",
+              generateMode === 'pptx' 
+                ? "bg-slate-955 text-slate-500 border border-slate-800/80" 
+                : "bg-slate-50 text-slate-900 border-none shadow-xl"
+            )} 
+            delay={0.4}
+          >
+            {generateMode === 'pptx' ? (
+              <div 
+                onClick={() => setGenerateMode('both')}
+                className="absolute inset-0 bg-slate-950/75 backdrop-blur-sm z-20 flex flex-col items-center justify-center cursor-pointer p-4 rounded-3xl border border-dashed border-slate-800 hover:border-orange-500/30 transition-all duration-300 group/pdf-overlay text-center"
+              >
+                <div className="w-12 h-12 rounded-full bg-slate-900/80 flex items-center justify-center mb-3 group-hover/pdf-overlay:bg-orange-500/10 transition-colors">
+                  <FileText className="w-5 h-5 text-slate-500 group-hover/pdf-overlay:text-orange-400 transition-colors" />
+                </div>
+                <span className="text-xs font-bold text-slate-400 group-hover/pdf-overlay:text-orange-400 transition-colors">PDF Desactivado</span>
+                <span className="text-[10px] text-slate-600 mt-1">Haz clic para activar y generar</span>
+              </div>
+            ) : null}
             <div className="flex flex-col h-full">
-              <span className="self-start px-2 py-0.5 bg-slate-200 rounded text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-3">
+              <span className={cn(
+                "self-start px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mb-3",
+                generateMode === 'pptx' ? "bg-slate-800 text-slate-500" : "bg-slate-200 text-slate-600"
+              )}>
                 Informe PDF
               </span>
               <h3 className="text-xl font-bold mb-2">Diseño Ejecutivo</h3>
-              <p className="text-xs text-slate-500 leading-relaxed mb-6">
+              <p className={cn(
+                "text-xs leading-relaxed mb-6",
+                generateMode === 'pptx' ? "text-slate-600" : "text-slate-500"
+              )}>
                 Maquetación automática con tipografía Inter, cajas de impacto y gráficos sectoriales integrados.
               </p>
               
-              <div className="flex-1 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center p-4 relative overflow-hidden">
+              <div className={cn(
+                "flex-1 rounded-xl flex items-center justify-center p-4 relative overflow-hidden transition-all duration-300",
+                generateMode === 'pptx' ? "bg-slate-950 border border-slate-900" : "bg-slate-200 border border-slate-300"
+              )}>
                 {reportData ? (
-                  <div className="text-center">
-                    <div className="w-12 h-1 bg-slate-400 mx-auto mb-2 rounded" />
-                    <div className="w-16 h-1 bg-slate-400 mx-auto mb-4 rounded" />
-                    <div className="text-[10px] font-bold text-slate-700 uppercase">{reportData.title}</div>
-                    <div className="text-[8px] text-slate-500 mt-1">REPORTE ANUAL 2026</div>
-                  </div>
+                  <>
+                    {reportData.sections[0]?.reportImageUrl && (
+                      <div className="absolute inset-0 z-0">
+                        <img 
+                          referrerPolicy="no-referrer"
+                          src={reportData.sections[0].reportImageUrl} 
+                          alt="PDF Preview Background" 
+                          className="w-full h-full object-cover opacity-20" 
+                        />
+                      </div>
+                    )}
+                    <div className="text-center z-10 relative">
+                      <div className="w-12 h-1 bg-slate-400 mx-auto mb-2 rounded" />
+                      <div className="w-16 h-1 bg-slate-400 mx-auto mb-4 rounded" />
+                      <div className="text-[10px] font-bold text-slate-700 uppercase tracking-wider">{reportData.title}</div>
+                      <div className="text-[8px] text-slate-500 mt-1 font-semibold">{reportData.theme?.aesthetic.toUpperCase()} REPORT</div>
+                    </div>
+                  </>
                 ) : (
                   <FileText className="w-12 h-12 text-slate-300" />
                 )}
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-200/50 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-200/40 to-transparent pointer-events-none" />
               </div>
 
               <button 
-                disabled={status !== 'ready'}
+                disabled={status !== 'ready' || generateMode === 'pptx'}
                 onClick={() => reportData && generatePDF(reportData)}
-                className="mt-6 w-full py-3 bg-slate-900 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="mt-6 w-full py-3 bg-slate-900 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-lg shadow-black/10"
               >
                 <Download className="w-4 h-4" /> Descargar PDF
               </button>
@@ -241,33 +353,68 @@ export default function App() {
           </BentoCard>
 
           {/* PPT Preview Cell */}
-          <BentoCard className="md:col-span-4 md:row-span-7" delay={0.5}>
+          <BentoCard 
+            className={cn(
+              "md:col-span-4 md:row-span-7 transition-all duration-300 relative",
+              generateMode === 'pdf' 
+                ? "bg-slate-955 text-slate-500 border border-slate-800/80" 
+                : ""
+            )} 
+            delay={0.5}
+          >
+            {generateMode === 'pdf' ? (
+              <div 
+                onClick={() => setGenerateMode('both')}
+                className="absolute inset-0 bg-slate-950/75 backdrop-blur-sm z-20 flex flex-col items-center justify-center cursor-pointer p-4 rounded-3xl border border-dashed border-slate-800 hover:border-orange-500/30 transition-all duration-300 group/ppt-overlay text-center"
+              >
+                <div className="w-12 h-12 rounded-full bg-slate-900/80 flex items-center justify-center mb-3 group-hover/ppt-overlay:bg-orange-500/10 transition-colors">
+                  <Presentation className="w-5 h-5 text-slate-500 group-hover/ppt-overlay:text-orange-400 transition-colors" />
+                </div>
+                <span className="text-xs font-bold text-slate-400 group-hover/ppt-overlay:text-orange-400 transition-colors">Presentación Desactivada</span>
+                <span className="text-[10px] text-slate-600 mt-1">Haz clic para activar y generar</span>
+              </div>
+            ) : null}
             <div className="flex flex-col h-full">
-              <span className="self-start px-2 py-0.5 bg-slate-700 rounded text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">
+              <span className={cn(
+                "self-start px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mb-3",
+                generateMode === 'pdf' ? "bg-slate-800 text-slate-600 animate-none" : "bg-slate-700 text-slate-400"
+              )}>
                 Presentación PPTX
               </span>
               <h3 className="text-xl font-bold mb-2">Elegancia Visual</h3>
-              <p className="text-xs text-slate-400 leading-relaxed mb-6">
+              <p className={cn(
+                "text-xs leading-relaxed mb-6",
+                generateMode === 'pdf' ? "text-slate-600" : "text-slate-400"
+              )}>
                 Diapositivas de alto impacto visual con imágenes generadas por IA que ilustran cada concepto.
               </p>
 
-              <div className="flex-1 rounded-xl bg-slate-900 border border-slate-700 flex flex-col items-center justify-center p-4 relative overflow-hidden">
-                {reportData?.sections[0]?.imageUrl ? (
-                  <img src={reportData.sections[0].imageUrl} alt="AI Preview" className="w-full h-full object-cover opacity-60" />
+              <div className="flex-1 rounded-xl bg-slate-950 border border-slate-800 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+                {reportData?.sections[0]?.presentationImageUrl ? (
+                  <img 
+                    referrerPolicy="no-referrer"
+                    src={reportData.sections[0].presentationImageUrl} 
+                    alt="AI PPT Preview" 
+                    className="w-full h-full object-cover opacity-60 rounded-lg" 
+                  />
                 ) : (
                   <Presentation className="w-12 h-12 text-slate-700" />
                 )}
-                <div className="absolute inset-0 flex items-center justify-center">
-                   <div className="bg-slate-800/80 backdrop-blur-sm px-4 py-2 rounded-lg border border-slate-700">
-                     <span className="text-[10px] font-bold text-orange-500 uppercase tracking-widest italic">Imagen AI</span>
-                   </div>
-                </div>
+                {reportData?.sections[0]?.presentationImageUrl && (
+                  <div className="absolute inset-x-0 bottom-4 flex items-center justify-center">
+                    <div className="bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700/60 shadow-lg">
+                      <span className="text-[9px] font-bold text-orange-400 uppercase tracking-widest italic flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 animate-spin duration-3000" /> Diapositiva 2 Preview
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <button 
-                disabled={status !== 'ready'}
+                disabled={status !== 'ready' || generateMode === 'pdf'}
                 onClick={() => reportData && generatePPT(reportData)}
-                className="mt-6 w-full py-3 bg-orange-500 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="mt-6 w-full py-3 bg-orange-500 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-lg shadow-orange-500/10"
               >
                 <Download className="w-4 h-4" /> Descargar PPT
               </button>
