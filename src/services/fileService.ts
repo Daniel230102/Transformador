@@ -125,6 +125,16 @@ export function generatePDF(data: ReportData) {
   doc.save(`${data.title.replace(/\s+/g, '_')}_Informe.pdf`);
 }
 
+function cleanBase64ForPptx(base64Url: string): string {
+  if (base64Url.startsWith("data:")) {
+    const commaIndex = base64Url.indexOf(",");
+    if (commaIndex !== -1) {
+      return base64Url.substring(commaIndex + 1);
+    }
+  }
+  return base64Url;
+}
+
 export function generatePPT(data: ReportData) {
   const pptx = new PptxGenJS();
   const theme = data.theme;
@@ -175,7 +185,11 @@ export function generatePPT(data: ReportData) {
       case 0: // Imagen Completa Fondo Izquierda, Texto Derecha
         slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 5, h: '100%', fill: { color: '1e293b' } });
         if (section.presentationImageUrl) {
-          slide.addImage({ data: section.presentationImageUrl, x: 0.2, y: 0.2, w: 4.6, h: 5.2, sizing: { type: 'cover', w: 4.6, h: 5.2 } });
+          try {
+            slide.addImage({ data: cleanBase64ForPptx(section.presentationImageUrl), x: 0.2, y: 0.2, w: 4.6, h: 5.2, sizing: { type: 'cover', w: 4.6, h: 5.2 } });
+          } catch (e) {
+            console.error("Error drawing PPT slide 1 image:", e);
+          }
         } else {
           slide.addShape(pptx.ShapeType.rect, { x: 0.5, y: 1.5, w: 4, h: 3, fill: { color: accent } });
           slide.addText("EJE ESTRATÉGICO", { x: 0.5, y: 2.7, w: 4, h: 1, fontSize: 22, color: 'ffffff', bold: true, align: 'center' });
@@ -187,7 +201,11 @@ export function generatePPT(data: ReportData) {
       case 1: // Enfoque Texto Arriba, 3 Columnas abajo
         slide.addText(section.title, { x: 0.5, y: 0.5, w: 9, h: 0.8, fontSize: 28, color: accent, bold: true, align: 'center' });
         if (section.presentationImageUrl) {
-          slide.addImage({ data: section.presentationImageUrl, x: 1, y: 1.5, w: 8, h: 2.2, sizing: { type: 'contain', w: 8, h: 2.2 } });
+          try {
+            slide.addImage({ data: cleanBase64ForPptx(section.presentationImageUrl), x: 1, y: 1.5, w: 8, h: 2.2, sizing: { type: 'contain', w: 8, h: 2.2 } });
+          } catch (e) {
+            console.error("Error drawing PPT slide 2 image:", e);
+          }
         } else {
           slide.addShape(pptx.ShapeType.rect, { x: 1, y: 1.5, w: 8, h: 2.2, fill: { color: '1e293b' } });
           slide.addText("SÍNTESIS ANALÍTICA", { x: 1, y: 2.3, w: 8, h: 1, fontSize: 20, color: accent, bold: true, align: 'center' });
@@ -199,7 +217,11 @@ export function generatePPT(data: ReportData) {
         slide.addText(section.title, { x: 0.5, y: 0.3, w: 6, h: 0.6, fontSize: 24, color: accent, bold: true });
         slide.addText(section.keyPoints.slice(0, 3).join(' • '), { x: 0.5, y: 0.8, w: 9, h: 0.5, fontSize: 12, color: 'cccccc' });
         if (section.presentationImageUrl) {
-          slide.addImage({ data: section.presentationImageUrl, x: 0.5, y: 1.5, w: 9, h: 3.8, sizing: { type: 'cover', w: 9, h: 3.8 } });
+          try {
+            slide.addImage({ data: cleanBase64ForPptx(section.presentationImageUrl), x: 0.5, y: 1.5, w: 9, h: 3.8, sizing: { type: 'cover', w: 9, h: 3.8 } });
+          } catch (e) {
+            console.error("Error drawing PPT slide 3 image:", e);
+          }
         } else {
           slide.addShape(pptx.ShapeType.rect, { x: 0.5, y: 1.5, w: 9, h: 3.8, fill: { color: '1e293b' } });
           slide.addText("INNOVACIÓN ESTRATÉGICA", { x: 0.5, y: 3.0, w: 9, h: 1, fontSize: 24, color: accent, bold: true, align: 'center' });
@@ -209,7 +231,11 @@ export function generatePPT(data: ReportData) {
       case 3: // Estilo "Gráfico": Texto izquierda, imagen con marco derecha
         slide.addShape(pptx.ShapeType.rect, { x: 5.2, y: 1.5, w: 4.5, h: 3.5, line: { color: accent, width: 3 } });
         if (section.presentationImageUrl) {
-          slide.addImage({ data: section.presentationImageUrl, x: 5.3, y: 1.6, w: 4.3, h: 3.3 });
+          try {
+            slide.addImage({ data: cleanBase64ForPptx(section.presentationImageUrl), x: 5.3, y: 1.6, w: 4.3, h: 3.3 });
+          } catch (e) {
+            console.error("Error drawing PPT slide 4 image:", e);
+          }
         } else {
           slide.addShape(pptx.ShapeType.rect, { x: 5.3, y: 1.6, w: 4.3, h: 3.3, fill: { color: '1e293b' } });
           slide.addText("VISUALIZACIÓN", { x: 5.3, y: 2.9, w: 4.3, h: 1, fontSize: 18, color: 'ffffff', bold: true, align: 'center' });

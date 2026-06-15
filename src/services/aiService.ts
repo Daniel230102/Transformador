@@ -159,10 +159,8 @@ export async function analyzeWordContent(text: string): Promise<ReportData> {
       }
     }
     
-    console.error("All Groq models failed. Falling back to Gemini if available.");
-    if (!getGeminiKey()) {
-      throw lastError || new Error("Error en el procesamiento con Groq.");
-    }
+    console.error("All Groq models failed.");
+    throw lastError || new Error("Error en el procesamiento con Groq.");
   }
 
   // --- FALLBACK TO GEMINI (EXACT ORIGINAL LOGIC) ---
@@ -234,10 +232,32 @@ export async function analyzeWordContent(text: string): Promise<ReportData> {
   return reportData;
 }
 
+async function fetchAndConvertToBase64(url: string): Promise<string> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    const blob = await res.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        resolve(reader.result as string);
+      };
+      reader.onerror = () => reject(new Error("FileReader failed"));
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.warn("Failed to convert fallback Unsplash image to base64, using a solid color fallback:", error);
+    // Return a beautiful solid corporate warm slate background (1x1 PNG pixel)
+    return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAC1HAwCAAAAC0lEQVR42mN8vJfRDwAE8AF00L/vswAAAABJRU5ErkJggg==";
+  }
+}
+
 export async function generateSectionImage(prompt: string): Promise<string | undefined> {
   const geminiKey = getGeminiKey();
+  const groqKey = getGroqKey();
 
-  if (geminiKey) {
+  // If CONVERSOR_API_KEY (Groq) is present, we completely bypass Gemini image generation to avoid any 429 quota exception and immediately use Unsplash.
+  if (geminiKey && !groqKey) {
     try {
       const ai = getAI();
       const response = await ai.models.generateContent({
@@ -264,16 +284,18 @@ export async function generateSectionImage(prompt: string): Promise<string | und
         }
       }
     } catch (error) {
-      console.warn("Unable to generate image with Gemini, falling back to Unsplash photo reference:", error);
+      console.warn("Unable to generate image with Gemini, falling back to Unsplash photo reference safely without disruption:", error);
     }
   }
 
   // --- PREMIUM FALLBACK DESIGN: Unsplash Cinematic Real Photo ---
-  // If Gemini isn't present, or fails, we retrieve highly curated conceptual visual assets via Unsplash redirects.
-  // This maintains client-side performance, instant response time & spectacular rendering!
+  // Retrieve highly curated conceptual visual assets via Unsplash redirects.
+  // We instantly fetch and convert to Base64 to bypass any CORS restrictions or PptxGenJS format limitations!
   const term = extractKeyword(prompt);
   const randomId = Math.floor(Math.random() * 9999);
   const url = `https://images.unsplash.com/featured/768x432?sig=${randomId}&${encodeURIComponent(term)}`;
   console.log(`Fallback Image: resolved keyword term [${term}] -> URL: ${url}`);
-  return url;
+  
+  // Convert URL directly to base64 before passing it to avoid PPTX/PDF generation failures or alerts
+  return await fetchAndConvertToBase64(url);
 }
