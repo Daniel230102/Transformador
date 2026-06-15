@@ -3,18 +3,170 @@ import { ReportData, ReportSection } from "../types";
 
 let aiInstance: GoogleGenAI | null = null;
 
+function getGeminiKey(): string | null {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === "undefined" || apiKey === "") {
+    return null;
+  }
+  return apiKey;
+}
+
+function getGroqKey(): string | null {
+  const apiKey = process.env.CONVERSOR_API_KEY;
+  if (!apiKey || apiKey === "undefined" || apiKey === "") {
+    return null;
+  }
+  return apiKey;
+}
+
 function getAI() {
   if (!aiInstance) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey || apiKey === "undefined") {
-      throw new Error("La clave API de Gemini no está configurada. Por favor, añádela a las variables de entorno.");
+    const apiKey = getGeminiKey();
+    if (!apiKey) {
+      throw new Error("La clave API de Gemini no está configurada.");
     }
     aiInstance = new GoogleGenAI({ apiKey });
   }
   return aiInstance;
 }
 
+// Extract concise query terms from prompt for fallback high-quality stock photography
+function extractKeyword(prompt: string): string {
+  let clean = prompt
+    .toLowerCase()
+    .replace(/high-quality/g, '')
+    .replace(/professional/g, '')
+    .replace(/visual[:]?/g, '')
+    .replace(/cinematic lighting/g, '')
+    .replace(/8k resolution/g, '')
+    .replace(/clean composition/g, '')
+    .replace(/no text/g, '')
+    .replace(/drawing/g, '')
+    .replace(/illustration/g, '')
+    .replace(/diagram/g, '')
+    .replace(/vector/g, '')
+    .replace(/illustration of/g, '')
+    .replace(/concept of/g, '')
+    .replace(/image of/g, '')
+    .trim();
+
+  // Pick first 3 words longer than 3 characters, omitting common conjunctions
+  const words = clean.split(/[\s,.-]+/).filter(w => w.length > 3 && w !== 'with' && w !== 'that' && w !== 'from' && w !== 'this');
+  if (words.length > 0) {
+    return words.slice(0, 3).join(',');
+  }
+  return 'technology,corporate';
+}
+
 export async function analyzeWordContent(text: string): Promise<ReportData> {
+  const groqKey = getGroqKey();
+
+  if (groqKey) {
+    console.log("Using Groq API with LLaMA model via CONVERSOR_API_KEY...");
+    
+    // We try multiple premium Groq models for extreme reliability and speed
+    const models = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "mixtral-8x7b-32768", "llama-3.1-8b-instant"];
+    let lastError: any = null;
+
+    for (const model of models) {
+      try {
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${groqKey}`
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [
+              {
+                role: "system",
+                content: `Eres un consultor ejecutivo sénior de McKinsey y un experto diseñador instruccional. 
+                Tu objetivo es analizar el documento adjuntado y transformarlo en un informe corporativo de alta calidad técnica, diseño espectacular y contenido muy extenso en español:
+                
+                Sigue estrictamente este esquema JSON:
+                {
+                  "title": "Título principal del informe. Debe ser profesional e importante.",
+                  "subtitle": "Subtítulo elegante o la propuesta de valor principal.",
+                  "author": "Nombre del autor o empresa redactora formal.",
+                  "date": "Fecha formal de presentación (ej: Mayo 2026).",
+                  "summary": "Resumen ejecutivo estratégico en español de al menos 120-150 palabras analizando los hallazgos cruciales.",
+                  "keywords": ["estrategia", "empresa", "tecnología"],
+                  "theme": {
+                    "primaryColor": "#1e3a8a", // Color hexadecimal primario de la paleta corporativa
+                    "secondaryColor": "#3b82f6", // Color secundario coordinado
+                    "accentColor": "#f97316", // Color destacado de alto contraste
+                    "aesthetic": "corporate" // "corporate" | "creative" | "technical" | "minimalist" | "academic"
+                  },
+                  "sections": [
+                    {
+                      "title": "Título descriptivo de la sección",
+                      "content": "Análisis exhaustivo, rico, detallado en párrafos extensos en español (mínimo de 150 a 200 palabras por sección). No resumas en frases inconclusas ni dejes ideas a medias.",
+                      "keyPoints": [
+                        "Dato clave o punto estratégico 1",
+                        "Dato clave o punto estratégico 2",
+                        "Dato clave o punto estratégico 3"
+                      ],
+                      "reportImagePrompt": "A single clear search keyword or short english noun phrase representing the visual (e.g. 'office teamwork illustration')",
+                      "presentationImagePrompt": "An english aesthetic concept for cinematic imagery (e.g. 'modern corporate architectural glass tower')"
+                    }
+                  ]
+                }
+                
+                REGLAS CRÍTICAS:
+                1. MÁXIMA EXTENSIÓN: Expande cada sección detallando conceptos analizados con precisión técnica. No resumas.
+                2. NÚMERO DE SECCIONES: Genera de 6 a 10 secciones consecutivas para cubrir todo el texto original de extremo a extremo.
+                3. ESTILO DE VALORES HEXADECIMALES: Elige colores hermosos, equilibrados y modernos, no uses combinaciones estridentes.
+                4. Devuelve ÚNICAMENTE el esquema JSON válido. No incluyes explicaciones extra, saludos o despedidas.`
+              },
+              {
+                role: "user",
+                content: `TEXTO DEL DOCUMENTO DOCX:\n${text.substring(0, 45000)}`
+              }
+            ],
+            response_format: {
+              type: "json_object"
+            },
+            temperature: 0.3
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error calling Groq! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const responseText = data.choices?.[0]?.message?.content || "";
+        
+        // Clean JSON format backticks if any
+        let cleanText = responseText.trim();
+        if (cleanText.startsWith("```json")) {
+          cleanText = cleanText.substring(7);
+        }
+        if (cleanText.endsWith("```")) {
+          cleanText = cleanText.substring(0, cleanText.length - 3);
+        }
+
+        const reportData = JSON.parse(cleanText.trim()) as ReportData;
+        
+        // Final sanity checks on parsed object
+        if (reportData && reportData.title && reportData.sections && reportData.sections.length > 0) {
+          return reportData;
+        }
+      } catch (e: any) {
+        console.warn(`Failed with Groq model ${model}:`, e);
+        lastError = e;
+      }
+    }
+    
+    console.error("All Groq models failed. Falling back to Gemini if available.");
+    if (!getGeminiKey()) {
+      throw lastError || new Error("Error en el procesamiento con Groq.");
+    }
+  }
+
+  // --- FALLBACK TO GEMINI (EXACT ORIGINAL LOGIC) ---
+  console.log("Using Gemini API for document analysis...");
   const ai = getAI();
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
@@ -83,33 +235,45 @@ export async function analyzeWordContent(text: string): Promise<ReportData> {
 }
 
 export async function generateSectionImage(prompt: string): Promise<string | undefined> {
-  try {
-    const ai = getAI();
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
-      contents: {
-        parts: [
-          {
-            text: `High-quality professional visual: ${prompt}. Cinematic lighting, 8k resolution, clean composition. No text.`,
-          },
-        ],
-      },
-      config: {
-        imageConfig: {
-          aspectRatio: "16:9",
-          imageSize: "768x432" // Adjusted for better performance and compatibility on Vercel
+  const geminiKey = getGeminiKey();
+
+  if (geminiKey) {
+    try {
+      const ai = getAI();
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: {
+          parts: [
+            {
+              text: `High-quality professional visual: ${prompt}. Cinematic lighting, 8k resolution, clean composition. No text.`,
+            },
+          ],
+        },
+        config: {
+          imageConfig: {
+            aspectRatio: "16:9",
+            imageSize: "768x432" // Optimized for better performance and compatibility on Vercel
+          }
+        }
+      });
+
+      for (const part of response.candidates?.[0]?.content?.parts || []) {
+        if (part.inlineData) {
+          // Force JPEG header explicitly for excellent quality and cross-browser Vercel downloads
+          return `data:image/jpeg;base64,${part.inlineData.data}`;
         }
       }
-    });
-
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) {
-        // Force PNG/JPG header explicitly for better browser support
-        return `data:image/jpeg;base64,${part.inlineData.data}`;
-      }
+    } catch (error) {
+      console.warn("Unable to generate image with Gemini, falling back to Unsplash photo reference:", error);
     }
-  } catch (error) {
-    console.error("Error generating image:", error);
   }
-  return undefined;
+
+  // --- PREMIUM FALLBACK DESIGN: Unsplash Cinematic Real Photo ---
+  // If Gemini isn't present, or fails, we retrieve highly curated conceptual visual assets via Unsplash redirects.
+  // This maintains client-side performance, instant response time & spectacular rendering!
+  const term = extractKeyword(prompt);
+  const randomId = Math.floor(Math.random() * 9999);
+  const url = `https://images.unsplash.com/featured/768x432?sig=${randomId}&${encodeURIComponent(term)}`;
+  console.log(`Fallback Image: resolved keyword term [${term}] -> URL: ${url}`);
+  return url;
 }
